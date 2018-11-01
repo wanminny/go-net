@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gobible/muduo-go/muduo"
+	"log"
 )
 
 type options struct {
@@ -43,8 +44,26 @@ func init() {
 	muduo.Check(binary.Size(SessionMessage{}) == 8, "packed struct")
 }
 
+//分析数据报文组成：
+// msgHeader + msgPayLoad
+// ------------------  msgHeader -------------------
+//   4   number     |              4  length
+// -------------------- payload ---------------------
+//					|
+//      length (4)  |   []byte   (length 个)
+//---------------------------------------------------
+//					|
+//      length (4)  |   []byte   (length 个)
+//---------------------------------------------------
+//					|
+//      length (4)  |   []byte   (length 个)
+//---------------------------------------------------
+//        			......      (number 个)
+//---------------------------------------------------
+
 // 客户端发送
 func transmit() {
+
 	sessionMessage := SessionMessage{int32(opt.number), int32(opt.length)}
 	fmt.Printf("buffer length = %d\nnumber of buffers = %d\n",
 		sessionMessage.Length, sessionMessage.Number)
@@ -54,16 +73,19 @@ func transmit() {
 	//客户端 拨号
 	conn, err := net.Dial("tcp", net.JoinHostPort(opt.host, strconv.Itoa(opt.port)))
 	muduo.PanicOnError(err)
-	// t := conn.(*net.TCPConn)
-	// t.SetNoDelay(false)
+
+	t := conn.(*net.TCPConn)
+	t.SetNoDelay(false)
+
 	defer conn.Close()
 
 	start := time.Now()
 
-	//发送啥？？
+	//发送啥？？ [先发送 sessionMessage 结构体！]
 	err = binary.Write(conn, binary.BigEndian, &sessionMessage)
 	muduo.PanicOnError(err)
 
+	// 消息体 ？
 	total_len := 4 + opt.length // binary.Size(int32(0)) == 4
 	// println(total_len)
 
@@ -72,6 +94,7 @@ func transmit() {
 	for i := 0; i < opt.length; i++ {
 		payload[4+i] = "0123456789ABCDEF"[i%16]
 	}
+	log.Println(string(payload))
 
 	//多少个number个数
 	for i := 0; i < opt.number; i++ {
@@ -80,7 +103,7 @@ func transmit() {
 		muduo.PanicOnError(err)
 		muduo.Check(n == len(payload), "write payload")
 
-		var ack int32
+		var ack int32 //因为发送的时候是int32
 		err = binary.Read(conn, binary.BigEndian, &ack)
 		muduo.PanicOnError(err)
 		muduo.Check(ack == int32(opt.length), "ack")
@@ -107,6 +130,7 @@ func receive() {
 
 	// Read header
 	var sessionMessage SessionMessage
+	//读取完整的一个 SessionMessage 结构体字节数; 【SessionMessage 结构就可以接受住了】
 	err = binary.Read(conn, binary.BigEndian, &sessionMessage)
 	muduo.PanicOnError(err)
 
@@ -122,7 +146,7 @@ func receive() {
 	for i := 0; i < int(sessionMessage.Number); i++ {
 
 		var length int32
-		// 先读长度
+		// 先读长度 ；长度只需要四个字节就可以接受住了；
 		err = binary.Read(conn, binary.BigEndian, &length)
 		muduo.PanicOnError(err)
 		muduo.Check(length == sessionMessage.Length, "read length")
@@ -132,12 +156,13 @@ func receive() {
 		muduo.PanicOnError(err)
 		muduo.Check(n == len(payload), "read payload")
 
-		// ack
+		// ack             //每次发送完length个以后就来一个ack ;
 		err = binary.Write(conn, binary.BigEndian, &length)
 		muduo.PanicOnError(err)
 	}
 
 	elapsed := time.Since(start).Seconds()
+	//总的传输量/总的实际 = 效率
 	fmt.Printf("%.3f seconds\n%.3f MiB/s\n", elapsed, total_mb/elapsed)
 }
 
