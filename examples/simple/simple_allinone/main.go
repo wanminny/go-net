@@ -19,7 +19,7 @@ func main() {
 	go echoServer.Serve()
 
 	// short connection
-
+	// [用完后直接关闭了！]
 	daytimeServer := simple.NewDaytimeServer(":2013")
 	go daytimeServer.Serve()
 
