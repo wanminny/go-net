@@ -13,6 +13,10 @@ import (
 	"log"
 )
 
+func init()  {
+	log.SetFlags(log.Llongfile | log.Ltime | log.Lmicroseconds)
+}
+
 type options struct {
 	port     int
 	length   int
@@ -47,7 +51,7 @@ func init() {
 //分析数据报文组成：
 // msgHeader + msgPayLoad
 // ------------------  msgHeader -------------------
-//   4   number     |              4  length
+//   4byte number   |              4  length
 // -------------------- payload ---------------------
 //					|
 //      length (4)  |   []byte   (length 个)
@@ -75,6 +79,7 @@ func transmit() {
 	muduo.PanicOnError(err)
 
 	t := conn.(*net.TCPConn)
+	// 使得发送端不会等待 tcp层面 的ack 【tcp segment 中的】
 	t.SetNoDelay(false)
 
 	defer conn.Close()
@@ -90,6 +95,8 @@ func transmit() {
 	// println(total_len)
 
 	payload := make([]byte, total_len)
+
+	//先组织好大端数据 后面write才可以！conn.Write
 	binary.BigEndian.PutUint32(payload, uint32(opt.length))
 	for i := 0; i < opt.length; i++ {
 		payload[4+i] = "0123456789ABCDEF"[i%16]
@@ -104,6 +111,7 @@ func transmit() {
 		muduo.Check(n == len(payload), "write payload")
 
 		var ack int32 //因为发送的时候是int32
+		// 等待应用层面的ack ; 这个是应用层面的ack
 		err = binary.Read(conn, binary.BigEndian, &ack)
 		muduo.PanicOnError(err)
 		muduo.Check(ack == int32(opt.length), "ack")
@@ -146,18 +154,35 @@ func receive() {
 	for i := 0; i < int(sessionMessage.Number); i++ {
 
 		var length int32
-		// 先读长度 ；长度只需要四个字节就可以接受住了；
+		// 先读长度 ；长度只需要int32 四个字节就可以接受住了；
 		err = binary.Read(conn, binary.BigEndian, &length)
 		muduo.PanicOnError(err)
 		muduo.Check(length == sessionMessage.Length, "read length")
 
 		var n int
+		//然后是 具体的payload !
 		n, err = io.ReadFull(conn, payload)
 		muduo.PanicOnError(err)
 		muduo.Check(n == len(payload), "read payload")
 
-		// ack             //每次发送完length个以后就来一个ack ;
-		err = binary.Write(conn, binary.BigEndian, &length)
+		// ack  这个是应用层面的ack            //每次发送完length个以后就来一个ack ;
+		//err = binary.Write(conn, binary.BigEndian, &length)
+
+		//ok 方法1
+		bslice := make([]byte,4)
+		binary.BigEndian.PutUint32(bslice,uint32(length))
+		n,err = conn.Write(bslice)
+		log.Println(bslice)
+
+		// 方法二 错误！
+		//bs := []byte(fmt.Sprintf("%d",uint32(length)))
+		//log.Println(bs)
+		//n,err = conn.Write(bs)
+
+		//方法三 错误！
+		//此种写法不正确！！可见还是要大端才可以！
+		//n,err = conn.Write([]byte(strconv.Itoa(int(length))))
+
 		muduo.PanicOnError(err)
 	}
 
