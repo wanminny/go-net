@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/chenshuo/muduo-examples-in-go/examples/simple"
+	"gobible/muduo-go/examples/simple"
 )
 
 func main() {
