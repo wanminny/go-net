@@ -26,6 +26,8 @@ func (s *TimeServer) Serve() {
 		if err == nil {
 			printConn(conn, "time", "UP")
 			var now int32 = int32(time.Now().Unix())
+
+			////与普通的发送的区别？
 			binary.Write(conn, binary.BigEndian, &now)
 			printConn(conn, "time", "DOWN")
 			conn.Close()

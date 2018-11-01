@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gobible/muduo-go/muduo"
+	"encoding/binary"
 )
 
 type DaytimeServer struct {
@@ -27,7 +28,17 @@ func (s *DaytimeServer) Serve() {
 		if err == nil {
 			printConn(conn, "daytime", "UP")
 			str := fmt.Sprintf("%v\n", time.Now())
-			conn.Write([]byte(str))
+
+			log.Println(str,len(str))
+			//var lenStr int32 = int32(len(str))
+
+			// 发送 方式1
+			//conn.Write([]byte(str))
+
+			 //发送 方式 2
+			//binary.Write(conn,binary.BigEndian,lenStr)
+			binary.Write(conn,binary.BigEndian,str)
+
 			printConn(conn, "daytime", "DOWN")
 			conn.Close()
 		} else {

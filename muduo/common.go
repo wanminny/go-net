@@ -50,6 +50,9 @@ func ServeTcp(l net.Listener, server TcpServer, name string) error {
 			return err
 		}
 		tempDelay = 0
+
+		//conn 是 accept的连接
+		//总共有两种资源;一种是 监听器资源；一个是通过监听器产生的accept连接 资源
 		go server.ServeConn(conn)
 	}
 }
