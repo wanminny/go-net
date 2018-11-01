@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chenshuo/muduo-examples-in-go/muduo"
+	"log"
 )
 
 func main() {
@@ -20,9 +21,12 @@ func main() {
 	muduo.PanicOnError(err)
 	defer conn.Close()
 
-	var unixtime int32
+	var unixtime int64
 	err = binary.Read(conn, binary.BigEndian, &unixtime)
 	muduo.PanicOnError(err)
 
-	println(time.Unix(int64(unixtime), 0).String())
+	log.Println(unixtime)
+
+	//自己解析的实际上收到的数据是上面的！！
+	println(time.Unix((unixtime), 0).String())
 }
